@@ -1,103 +1,136 @@
-// ❌ remove "use client" from here
-import { MainNav } from "@/components/navigation/main-nav"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { TrendingUp, Clock, Award, Zap } from "lucide-react"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { CalendarDays, Clock, Users, BookOpen, MessageSquare, Video, Plus } from "lucide-react"
+import { OverviewStats } from "@/components/dashboard/overview-stats"
+import Link from "next/link"
 import { prisma } from "@/lib/prisma"
-import { DashboardContent } from "@/components/dashboard/dashboard-content"
 
-export default async function Dashboard() {
-  const session = await getServerSession(authOptions)
-
-  if (!session?.user?.id) {
-    return null
-  }
-
-  const [user, studyRooms] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: session.user.id },
-      include: { userStatus: true },
-    }),
-    prisma.studyRoom.findMany({
-      where: { isPublic: true, isActive: true },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                avatar: true,
-                currentStreak: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { currentParticipants: "desc" },
-      take: 10,
-    }),
+export default async function DashboardPage() {
+  // Fetch real data from database
+  const [studyRooms, courses, posts, users] = await Promise.all([
+    prisma.studyRoom.count({ where: { isActive: true } }),
+    prisma.course.count({ where: { isPublished: true } }),
+    prisma.post.count(),
+    prisma.user.count()
   ])
 
   return (
-    <div className="min-h-screen bg-background">
-      <MainNav />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back, {session.user.name}! 👋</h1>
-          <p className="text-muted-foreground">
-            Ready to continue your learning journey? Here's what's happening today.
-          </p>
+    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+      <div className="flex items-center justify-between space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <div className="flex items-center space-x-2">
+          <Button asChild>
+            <Link href="/study-rooms/create">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Room
+            </Link>
+          </Button>
         </div>
+      </div>
+      
+      {/* Stats Overview */}
+      <OverviewStats 
+        studyRooms={studyRooms}
+        courses={courses}
+        posts={posts}
+        activeUsers={users}
+      />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Study Streak</CardTitle>
-              <Zap className="h-4 w-4 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">+2 from yesterday</p>
-            </CardContent>
-          </Card>
+      {/* Quick Actions */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Join Study Room</CardTitle>
+            <CardDescription>Connect with peers in live study sessions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/study-rooms">
+                <Video className="mr-2 h-4 w-4" />
+                Browse Rooms
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Explore Courses</CardTitle>
+            <CardDescription>Discover new learning opportunities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/marketplace">
+                <BookOpen className="mr-2 h-4 w-4" />
+                View Courses
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Knowledge Hub</CardTitle>
+            <CardDescription>Share ideas and get answers</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="w-full">
+              <Link href="/blog">
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Join Discussion
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Hours Studied</CardTitle>
-              <Clock className="h-4 w-4 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">47.5h</div>
-              <p className="text-xs text-muted-foreground">This month</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Courses Completed</CardTitle>
-              <Award className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">8</div>
-              <p className="text-xs text-muted-foreground">+1 this week</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Rank</CardTitle>
-              <TrendingUp className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">#247</div>
-              <p className="text-xs text-muted-foreground">Global leaderboard</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <DashboardContent user={user} studyRooms={studyRooms} />
+      {/* Recent Activity */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Study Sessions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center space-x-4">
+                <Avatar>
+                  <AvatarImage src={`/placeholder-user.jpg`} />
+                  <AvatarFallback>U{i}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Mathematics Study Group</p>
+                  <p className="text-xs text-muted-foreground">2 hours ago • 12 participants</p>
+                </div>
+                <Badge variant="secondary">Completed</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming Sessions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center space-x-4">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium">Physics Discussion</p>
+                  <p className="text-xs text-muted-foreground flex items-center">
+                    <Clock className="mr-1 h-3 w-3" />
+                    Tomorrow at 3:00 PM
+                  </p>
+                </div>
+                <Button size="sm" variant="outline">Join</Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

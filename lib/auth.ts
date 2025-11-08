@@ -1,5 +1,6 @@
 import type { NextAuthOptions } from "next-auth"
 import EmailProvider from "next-auth/providers/email"
+import GoogleProvider from "next-auth/providers/google"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { prisma } from "./prisma"
 import { sendMagicLinkEmail } from "./email"
@@ -8,6 +9,10 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     EmailProvider({
       server: {
         host: process.env.EMAIL_SERVER_HOST,
@@ -31,37 +36,31 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async session({ session, user }) {
-      if (session.user) {
+      console.log('Session callback:', { session, user })
+      if (session.user && user) {
         session.user.id = user.id
-        // Update user's status to online
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            isOnline: true,
-            lastSeenAt: new Date(),
-          },
-        })
       }
       return session
     },
-    async signIn() {
+    async signIn({ user, account, profile, email, credentials }) {
+      console.log('SignIn callback:', { user, account, profile, email })
       return true
+    },
+    async redirect({ url, baseUrl }) {
+      console.log('Redirect callback:', { url, baseUrl })
+      if (url.startsWith("/")) return `${baseUrl}${url}`
+      else if (new URL(url).origin === baseUrl) return url
+      return `${baseUrl}/dashboard`
     },
   },
 
-  events: {
-    async signOut({ token }) {
-      if (token?.sub) {
-        await prisma.user.update({
-          where: { id: token.sub },
-          data: { isOnline: false },
-        })
-      }
-    },
-  },
+
 
   pages: {
     signIn: "/auth/signin",
     verifyRequest: "/auth/verify-request",
+    error: "/auth/error",
   },
+
+  debug: process.env.NODE_ENV === "development",
 }

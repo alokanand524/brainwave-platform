@@ -1,72 +1,47 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url)
-    const isPublic = searchParams.get("public") !== "false"
-
-    const studyRooms = await prisma.studyRoom.findMany({
-      where: {
-        isPublic: isPublic,
-        isActive: true,
-      },
+    const rooms = await prisma.studyRoom.findMany({
+      where: { type: 'PUBLIC' },
       include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                avatar: true,
-                currentStreak: true,
-              },
-            },
-          },
-        },
+        owner: { select: { name: true, image: true } },
+        _count: { select: { members: true } }
       },
-      orderBy: {
-        currentParticipants: "desc",
-      },
+      orderBy: { createdAt: 'desc' }
     })
-
-    return NextResponse.json(studyRooms)
+    
+    return NextResponse.json(rooms)
   } catch (error) {
-    console.error("Error fetching study rooms:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch rooms' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const data = await request.json()
-
-    const studyRoom = await prisma.studyRoom.create({
+    const { title, description, type, maxMembers, password } = await request.json()
+    
+    const room = await prisma.studyRoom.create({
       data: {
-        name: data.name,
-        description: data.description,
-        isPublic: data.isPublic,
-        maxParticipants: data.maxParticipants,
-        allowChat: data.allowChat,
-        allowScreenShare: data.allowScreenShare,
-        requireCamera: data.requireCamera,
-        timerMode: data.timerMode,
-        sessionDuration: data.sessionDuration,
-        breakDuration: data.breakDuration,
-      },
+        title,
+        description,
+        type,
+        maxMembers,
+        password,
+        ownerId: session.user.id
+      }
     })
-
-    return NextResponse.json(studyRoom)
+    
+    return NextResponse.json(room)
   } catch (error) {
-    console.error("Error creating study room:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to create room' }, { status: 500 })
   }
 }
